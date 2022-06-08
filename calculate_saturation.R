@@ -28,23 +28,32 @@ irradiance$date_time <- as.POSIXct(paste(irradiance$Date, irradiance$Time, sep =
 
 # algo
 
-minutes_over_epar <- function(obs_posix_date, obs_lanai_side, obs_ek_est) {
+minutes_over_epar <- function(obs_posix_date, obs_lanai_side, e_sub_k) {
   # look for irradiance rows when date and Lanai side match
   irrad_on_obs_date <- subset(irradiance, posix_date == obs_posix_date & Lanai.Side == obs_lanai_side)
   # count rows (minutes) when Epar is above 1
   total_minutes <- sum(with(irrad_on_obs_date, Epar >= 1))
   # count rows (minutes) when Epar  is greater then ek_est
-  minutes_above_epar <- sum(with(irrad_on_obs_date, Epar >= obs_ek_est))
-  perc_over_epar = minutes_above_epar / total_minutes
-  return(perc_over_epar)
+  minutes_above_ek <- sum(with(irrad_on_obs_date, Epar >= e_sub_k))
+  perc_over_ek = round(minutes_above_ek / total_minutes, 3)
+  
+  # irradiance rows where Epar is above e_sub_k
+  epar_above_ek <- subset(irrad_on_obs_date, Epar >= e_sub_k)
+  # first cross above Ek
+  first_cross_above_ek <- epar_above_ek[1, "Time"]
+  last_cross_below_ek <- epar_above_ek[nrow(epar_above_ek), "Time"]
+  #last_cross_below_ek
+  # desired output
+  # minutes_over_ek, perc_time_over_ek, first_cross_above_ek, last_cross_below_ek
+  answer <- list(minutes_above_ek, perc_over_ek, first_cross_above_ek, last_cross_below_ek)
+  names(answer)[[1]] <- "Irradiance > Ek (min)"
+  names(answer)[[2]] <- "Irradiance > Ek (%)"
+  names(answer)[[3]] <- "First time above Ek"
+  names(answer)[[4]] <- "Last time below Ek"
+  return(answer)
 }
 
-# observation under consideration
-ek[1,]
-# use the observation date
-minutes_over_epar(ek[1, "posix_date"], ek[1, "Lanai.Side"], ek[1, "ek.1"])
+irradiance_over_ek <- t(mapply(minutes_over_epar, ek$posix_date, ek$Lanai.Side, ek$ek.1))
+result <- cbind(ek, irradiance_over_ek)
 
-
-
-
-
+dir.create("./output", showWarnings = FALSE)
