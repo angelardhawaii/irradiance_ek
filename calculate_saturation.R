@@ -1,21 +1,20 @@
-
-
-# These are collapsed rapid light curves where each row is a unique observation
+# These are collapsed rapid light curves where each row is a unique sample and 
+# the information is the output from Phytotools package
 # The ek_est column is what we use to determine saturation
-ek = read.csv("./data_ek/run5_hyp_ulv_final_alpha_ek_rounded.csv")
+ek = read.csv("./data_ek/run5-6_ek_alpha.csv")
 # Make  sure the date is loaded as date
-ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
+ek$posix_date <- as.POSIXct(ek$Date, format = "%m/%d/%y")
 
 
 # These are time series of the irradiance measurements
 # The 3rd column is the value of interest (irradiance)
 ewa_irradiance_files <- dir("./data_irradiance/ewa", full.names = TRUE)
 ewa_irradiance <- do.call(rbind, lapply(ewa_irradiance_files, read.csv))
-ewa_irradiance$Lanai.Side <- as.factor("E")
+ewa_irradiance$Lanai.Side <- as.factor("ewa")
 
 dia_irradiance_files <- dir("./data_irradiance/dia", full.names = TRUE)
 dia_irradiance <- do.call(rbind, lapply(dia_irradiance_files, read.csv))
-dia_irradiance$Lanai.Side <- as.factor("D")
+dia_irradiance$Lanai.Side <- as.factor("diamond")
 
 irradiance <- rbind(ewa_irradiance, dia_irradiance)
 rm(dia_irradiance, ewa_irradiance, dia_irradiance_files, ewa_irradiance_files)
@@ -43,7 +42,7 @@ minutes_over_epar <- function(obs_posix_date, obs_lanai_side, obs_ek_est) {
 # observation under consideration
 ek[1,]
 # use the observation date
-minutes_over_epar(ek[1, "posix_date"], ek[1, "Lanai.Side"], ek[1, "ek_est"])
+minutes_over_epar(ek[1, "posix_date"], ek[1, "Lanai.Side"], ek[1, "ek.1"])
 
 
 
