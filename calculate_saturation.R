@@ -3,7 +3,7 @@
 # The ek_est column is what we use to determine saturation
 ek = read.csv("./data_ek/run5-6_ek_alpha.csv")
 # Make  sure the date is loaded as date
-ek$posix_date <- as.POSIXct(ek$Date, format = "%m/%d/%y")
+ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
 
 
 # These are time series of the irradiance measurements
@@ -58,5 +58,5 @@ ek$irradiance_over_ek_perc <- unlist(r[2, ])
 ek$first_time_over_ek <- unlist(r[3, ])
 ek$last_time_over_ek <- unlist(r[4, ])
 
-dir.create("./output", showWarnings = FALSE)
+#dir.create("./output", showWarnings = FALSE)
 write.csv(ek, "./output/irrad_ek.csv")
