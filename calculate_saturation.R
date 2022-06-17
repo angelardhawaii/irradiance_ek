@@ -1,6 +1,10 @@
 # These are collapsed rapid light curves where each row is a unique sample and 
 # the information is the output from Phytotools package
 # The ek_est column is what we use to determine saturation
+
+library(dplyr)
+library(ggplot2)
+
 ek = read.csv("./data_ek/run5-6_ek_alpha.csv")
 # Make  sure the date is loaded as date
 ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
