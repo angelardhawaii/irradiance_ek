@@ -11,11 +11,11 @@ ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
 ek$Run <- as.factor(ek$Run)
 ek$RLC.Order <- as.factor(ek$RLC.Order)
 ek$RLC.Day <- as.factor(ek$RLC.Day)
-ek$Treatment <- as.factor(ek$Treatment)
+ek$Treatment <- as.character(ek$Treatment)
 ek$Plant.ID <- as.factor(ek$Plant.ID)
 ek$Lanai.Side <- as.factor(ek$Lanai.Side)
 ek$Specimen.ID <- as.factor(ek$Specimen.ID)
-ek$Species <- as.factor(ek$Species)
+#ek$Species <- as.factor(as.character(ek$Species))
 
 # These are time series of the irradiance measurements
 # The 3rd column is the value of interest (irradiance)
@@ -141,6 +141,7 @@ for (specimen_id in specimen_ids) {
   }
 }
 print('done')
+delta_esubk_result %>% distinct()
 write.csv(delta_esubk_result, "./output/delta_ek.csv")
 
 
