@@ -5,10 +5,17 @@
 library(dplyr)
 library(ggplot2)
 
-ek = read.csv("./data_ek/run5-6_ek_alpha.csv")
+ek = read.csv("./data_ek/hyp_ulva_all_runs_ek_alpha_normalized.csv")
 # Make  sure the date is loaded as date
 ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
-
+ek$Run <- as.factor(ek$Run)
+ek$RLC.Order <- as.factor(ek$RLC.Order)
+ek$RLC.Day <- as.factor(ek$RLC.Day)
+ek$Treatment <- as.factor(ek$Treatment)
+ek$Plant.ID <- as.factor(ek$Plant.ID)
+ek$Lanai.Side <- as.factor(ek$Lanai.Side)
+ek$Specimen.ID <- as.factor(ek$Specimen.ID)
+ek$Species <- as.factor(ek$Species)
 
 # These are time series of the irradiance measurements
 # The 3rd column is the value of interest (irradiance)
@@ -63,4 +70,77 @@ ek$first_time_over_ek <- unlist(r[3, ])
 ek$last_time_over_ek <- unlist(r[4, ])
 
 #dir.create("./output", showWarnings = FALSE)
-write.csv(ek, "./output/irrad_ek.csv")
+write.csv(ek, "./output/all_runs_irrad_ek.csv")
+
+# - we want something like this
+# Specimen.ID Run Lanai.Side ek.day1 ek.1.day9 ek.delta    Treatment Temp...C. RLC.Order Plant.ID
+# hm1-1       2   ewa        133.1   73.2      -0.4500376
+
+# working_set <- subset(ek, Specimen.ID == 'Ul2-1' & Run == 6 & Lanai.Side == 'ewa')
+
+specimen_ids <- unique(ek$Specimen.ID)
+runs <- unique(ek$Run)
+lanai_sides <- unique(ek$Lanai.Side)
+species <- unique(ek$Species)
+
+
+columns <- c("specimen_id",
+            "run",
+            "lanai_side",
+            "ek_day1",
+            "ek_day5",
+            "ek_day9",
+            "ek_delta",
+            "treatment",
+            "temp",
+            "rlc_order",
+            "plant_id",
+            "species"
+)
+delta_esubk_result <- data.frame(matrix(nrow = 0, ncol = length(columns)) )
+colnames(delta_esubk_result) <- columns
+
+for (specimen_id in specimen_ids) {
+  for (run in runs) {
+    for (lanai_side in lanai_sides) {
+      for (species in species) {
+        working_set <- subset(ek, Specimen.ID == specimen_id & Run == run & Lanai.Side == lanai_side)
+      if (nrow(working_set) == 0) {
+        print(c("not found", specimen_id, run, lanai_side))
+        break
+      } 
+      d1 <- working_set[1,]
+      e_subk_d1 <- working_set[working_set$RLC.Day == 1,]$ek.1
+      if (length(e_subk_d1) == 0) {
+        e_subk_d1 <- c(NA)
+      }
+      e_subk_d5 <- working_set[working_set$RLC.Day == 5,]$ek.1
+      if (length(e_subk_d5) == 0) {
+        e_subk_d5 <- c(NA)
+      }
+      e_subk_d9 <- working_set[working_set$RLC.Day == 9,]$ek.1
+      if (length(e_subk_d9) == 0) {
+        e_subk_d9 <- c(NA)
+      }
+      e_subk_delta = (e_subk_d9 - e_subk_d1) / e_subk_d1
+      delta_esubk_result[nrow(delta_esubk_result) + 1, ] <- list(specimen_id,
+                                                                 run,
+                                                                 lanai_side,
+                                                                 e_subk_d1,
+                                                                 e_subk_d5,
+                                                                 e_subk_d9,
+                                                                 e_subk_delta,
+                                                                 d1$Treatment,
+                                                                 d1$Temp...C.,
+                                                                 d1$RLC.Order,
+                                                                 d1$Plant.ID,
+                                                                 d1$Species
+                                                                 )
+      }
+    }
+  }
+}
+print('done')
+write.csv(delta_esubk_result, "./output/delta_ek.csv")
+
+
