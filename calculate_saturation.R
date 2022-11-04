@@ -4,18 +4,16 @@
 
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
 
 ek = read.csv("./data_ek/hyp_ulva_all_runs_ek_alpha_normalized.csv")
 # Make  sure the date is loaded as date
 ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
-ek$Run <- as.factor(ek$Run)
 ek$RLC.Order <- as.factor(ek$RLC.Order)
 ek$RLC.Day <- as.factor(ek$RLC.Day)
 ek$Treatment <- as.character(ek$Treatment)
 ek$Plant.ID <- as.factor(ek$Plant.ID)
-ek$Lanai.Side <- as.factor(ek$Lanai.Side)
-ek$Specimen.ID <- as.factor(ek$Specimen.ID)
-#ek$Species <- as.factor(as.character(ek$Species))
+ek$Run <- as.character(ek$Run)
 
 # These are time series of the irradiance measurements
 # The 3rd column is the value of interest (irradiance)
@@ -72,18 +70,9 @@ ek$last_time_over_ek <- unlist(r[4, ])
 #dir.create("./output", showWarnings = FALSE)
 write.csv(ek, "./output/all_runs_irrad_ek.csv")
 
-# - we want something like this
-# Specimen.ID Run Lanai.Side ek.day1 ek.1.day9 ek.delta    Treatment Temp...C. RLC.Order Plant.ID
-# hm1-1       2   ewa        133.1   73.2      -0.4500376
-
-# working_set <- subset(ek, Specimen.ID == 'Ul2-1' & Run == 6 & Lanai.Side == 'ewa')
-
-specimen_ids <- unique(ek$Specimen.ID)
-runs <- unique(ek$Run)
-lanai_sides <- unique(ek$Lanai.Side)
-species <- unique(ek$Species)
-
-
+# 
+# Calculate delta Ek over 9 days
+#
 columns <- c("specimen_id",
             "run",
             "lanai_side",
@@ -100,48 +89,88 @@ columns <- c("specimen_id",
 delta_esubk_result <- data.frame(matrix(nrow = 0, ncol = length(columns)) )
 colnames(delta_esubk_result) <- columns
 
-for (specimen_id in specimen_ids) {
-  for (run in runs) {
-    for (lanai_side in lanai_sides) {
-      for (species in species) {
-        working_set <- subset(ek, Specimen.ID == specimen_id & Run == run & Lanai.Side == lanai_side)
-      if (nrow(working_set) == 0) {
-        print(c("not found", specimen_id, run, lanai_side))
-        break
-      } 
-      d1 <- working_set[1,]
-      e_subk_d1 <- working_set[working_set$RLC.Day == 1,]$ek.1
-      if (length(e_subk_d1) == 0) {
-        e_subk_d1 <- c(NA)
-      }
-      e_subk_d5 <- working_set[working_set$RLC.Day == 5,]$ek.1
-      if (length(e_subk_d5) == 0) {
-        e_subk_d5 <- c(NA)
-      }
-      e_subk_d9 <- working_set[working_set$RLC.Day == 9,]$ek.1
-      if (length(e_subk_d9) == 0) {
-        e_subk_d9 <- c(NA)
-      }
-      e_subk_delta = (e_subk_d9 - e_subk_d1) / e_subk_d1
-      delta_esubk_result[nrow(delta_esubk_result) + 1, ] <- list(specimen_id,
-                                                                 run,
-                                                                 lanai_side,
-                                                                 e_subk_d1,
-                                                                 e_subk_d5,
-                                                                 e_subk_d9,
-                                                                 e_subk_delta,
-                                                                 d1$Treatment,
-                                                                 d1$Temp...C.,
-                                                                 d1$RLC.Order,
-                                                                 d1$Plant.ID,
-                                                                 d1$Species
-                                                                 )
-      }
-    }
+unique_grouping <- ek[ , c("Specimen.ID", "Lanai.Side", "Run")] %>% group_by(Specimen.ID, Lanai.Side, Run) %>% distinct()
+for (i in 1:nrow(unique_grouping)) {
+  specimen_id = unique_grouping[i, ]$Specimen.ID
+  run = unique_grouping[i, ]$Run
+  lanai_side = unique_grouping[i, ]$Lanai.Side
+  working_set <- subset(ek, Specimen.ID == specimen_id & Run == run & Lanai.Side == lanai_side)
+  if (nrow(working_set) == 0) {
+    print(c("not found", specimen_id, run, lanai_side))
+    break
+  } 
+  d1 <- working_set[1,]
+  e_subk_d1 <- working_set[working_set$RLC.Day == 1,]$ek.1
+  if (length(e_subk_d1) == 0) {
+    e_subk_d1 <- c(NA)
   }
+  e_subk_d5 <- working_set[working_set$RLC.Day == 5,]$ek.1
+  if (length(e_subk_d5) == 0) {
+    e_subk_d5 <- c(NA)
+  }
+  e_subk_d9 <- working_set[working_set$RLC.Day == 9,]$ek.1
+  if (length(e_subk_d9) == 0) {
+    e_subk_d9 <- c(NA)
+  }
+  e_subk_delta = (e_subk_d9 - e_subk_d1) / e_subk_d1
+  delta_esubk_result[nrow(delta_esubk_result) + 1, ] <- list(specimen_id,
+                                                             run,
+                                                             lanai_side,
+                                                             e_subk_d1,
+                                                             e_subk_d5,
+                                                             e_subk_d9,
+                                                             e_subk_delta,
+                                                             d1$Treatment,
+                                                             d1$Temp...C.,
+                                                             d1$RLC.Order,
+                                                             d1$Plant.ID,
+                                                             d1$Species
+                                                             )
 }
-print('done')
-delta_esubk_result %>% distinct()
+
+delta_esubk_result$perc_delta <- round(as.numeric(delta_esubk_result$ek_delta * 100), 3) 
 write.csv(delta_esubk_result, "./output/delta_ek.csv")
 
+#make subsets for each species of the new dataframe. Remove the individual from Hypnea data that
+#had such a low Ft that it was impossible to get a day 9 RLC
+hypnea <- subset(delta_esubk_result, species == "hm" & ! is.na(perc_delta))
+hypnea$treatment_graph[hypnea$treatment == 0] <- "1) 35ppt/0.5umol"
+hypnea$treatment_graph[hypnea$treatment == 1] <- "2) 35ppt/14umol" 
+hypnea$treatment_graph[hypnea$treatment == 2] <- "3) 28ppt/27umol" 
+hypnea$treatment_graph[hypnea$treatment == 3] <- "5) 18ppt/53umol" 
+hypnea$treatment_graph[hypnea$treatment == 4] <- "6) 11ppt/80umol"
+hypnea$treatment_graph[hypnea$treatment == 2.5] <- "4) 28ppt/53umol"
 
+ulva <- subset(delta_esubk_result, species == "ul")
+ulva$treatment_graph[ulva$treatment == 0] <- "1) 35ppt/0.5umol"
+ulva$treatment_graph[ulva$treatment == 1] <- "2) 35ppt/14umol" 
+ulva$treatment_graph[ulva$treatment == 2] <- "3) 28ppt/27umol" 
+ulva$treatment_graph[ulva$treatment == 3] <- "5) 18ppt/53umol" 
+ulva$treatment_graph[ulva$treatment == 4] <- "6) 11ppt/80umol"
+ulva$treatment_graph[ulva$treatment == 2.5] <- "4) 28ppt/53umol"
+
+#visualize data
+ulva %>% group_by(treatment) %>% summarise_at(vars(perc_delta), list(mean = mean))
+ulva %>% group_by(run) %>% summarise_at(vars(perc_delta), list(mean = mean))
+
+ulva %>% ggplot(aes(treatment_graph, perc_delta)) + 
+  geom_boxplot(size=0.5) + 
+  geom_point(alpha = 0.5, size = 3, aes(color = run), show.legend = FALSE) + 
+  labs(x="salinity/nitrate", y= "Ek 8-day change (%)", title= "A", subtitle = "Ulva lactuca") + 
+  scale_x_discrete(labels = c("35ppt/0.5umolN", "35ppt/14umolN", "28ppt/27umolN", "28ppt/53umolN", "18ppt/53umolN", "11ppt/80umolN")) + 
+  ylim(-100, 120) + stat_mean() + 
+  geom_hline(yintercept=0, color = "purple", size = 0.5, alpha = 0.5) +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold", vjust = -15, hjust = 0.05), plot.subtitle = element_text(face = "italic", vjust = -20, hjust = 0.05))
+hypnea %>% group_by(treatment) %>% summarise_at(vars(perc_delta), list(mean = mean))
+hypnea %>% group_by(run) %>% summarise_at(vars(perc_delta), list(mean = mean))
+
+hypnea %>% ggplot(aes(treatment_graph, perc_delta)) + 
+  geom_boxplot(size=0.5) + 
+  geom_point(alpha = 0.5, size = 3, aes(color = run), show.legend = FALSE) + 
+  labs(x="salinity/nitrate", y= "Ek 8-day change (%)", title= "B", subtitle = "Hypnea musciformis") + 
+  scale_x_discrete(labels = c("35ppt/0.5umolN", "35ppt/14umolN", "28ppt/27umolN", "28ppt/53umolN", "18ppt/53umolN", "11ppt/80umolN")) + 
+  ylim(-100, 120) + stat_mean() + 
+  geom_hline(yintercept=0, color = "purple", size = 0.5, alpha = 0.5) +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold", vjust = -15, hjust = 0.05), plot.subtitle = element_text(face = "italic", vjust = -20, hjust = 0.05))
