@@ -6,33 +6,11 @@ library(dplyr)
 library(ggplot2)
 library(ggpubr)
 
-ek = read.csv("./data_ek/hyp_ulva_all_runs_ek_alpha_normalized.csv")
-# Make  sure the date is loaded as date
-ek$posix_date <- as.POSIXct(ek$Date, format = "%Y-%m-%d")
-ek$RLC.Order <- as.factor(ek$RLC.Order)
-ek$RLC.Day <- as.factor(ek$RLC.Day)
-ek$Treatment <- as.character(ek$Treatment)
-ek$Plant.ID <- as.factor(ek$Plant.ID)
-ek$Run <- as.character(ek$Run)
+# execute the R program that populates the ek data frame
+source("./populate_ek.R")
 
-# These are time series of the irradiance measurements
-# The 3rd column is the value of interest (irradiance)
-ewa_irradiance_files <- dir("./data_irradiance/ewa", full.names = TRUE)
-ewa_irradiance <- do.call(rbind, lapply(ewa_irradiance_files, read.csv))
-ewa_irradiance$Lanai.Side <- as.factor("ewa")
-
-dia_irradiance_files <- dir("./data_irradiance/dia", full.names = TRUE)
-dia_irradiance <- do.call(rbind, lapply(dia_irradiance_files, read.csv))
-dia_irradiance$Lanai.Side <- as.factor("diamond")
-
-irradiance <- rbind(ewa_irradiance, dia_irradiance)
-rm(dia_irradiance, ewa_irradiance, dia_irradiance_files, ewa_irradiance_files)
-
-# Loads all the files in the same data frame
-
-# Make sure the date is loaded as date
-irradiance$posix_date <- as.POSIXct(irradiance$Date, format = "%m/%d/%y", tz = "")
-irradiance$date_time <- as.POSIXct(paste(irradiance$Date, irradiance$Time, sep = " "), format = "%m/%d/%y %H:%M:%S")
+# execute the R program that populates the irradiance data frame
+source("./populate_irradiance.R")
 # -------------
 
 # algo
@@ -162,6 +140,8 @@ ulva %>% ggplot(aes(treatment_graph, perc_delta)) +
   geom_hline(yintercept=0, color = "purple", size = 0.5, alpha = 0.5) +
   theme_bw() +
   theme(plot.title = element_text(face = "bold", vjust = -15, hjust = 0.05), plot.subtitle = element_text(face = "italic", vjust = -20, hjust = 0.05))
+
+
 hypnea %>% group_by(treatment) %>% summarise_at(vars(perc_delta), list(mean = mean))
 hypnea %>% group_by(run) %>% summarise_at(vars(perc_delta), list(mean = mean))
 
