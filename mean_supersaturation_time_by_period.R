@@ -1,6 +1,5 @@
 # Calculate mean supersaturation time by period 
 
-# S
 # For runs 1-7
 # Period 1 is days 1-3 and uses Ek of day 1 as threshold
 # Period 2 is days 4-5 and uses Ek of day 5 as threshold
@@ -25,29 +24,37 @@ supersat <- ek[ek$RLC.Day == 1, c(
   "RLC.Order", "Plant.ID", "Species", "ek.1", "posix_date", "rlc_end_time")]
 names(supersat)[11] <- "day1_rlc_time" 
 
-# Populate the column with the hour when the RLC was done on day 9
-supersat9 <- ek[ek$RLC.Day == 9, c("Specimen.ID", "Run", "Lanai.Side", "rlc_end_time")]
+# Populate the column with the hour when the RLC was done, and Ek, on day 9
+supersat9 <- ek[ek$RLC.Day == 9, c("Specimen.ID", "Run", "Lanai.Side", "rlc_end_time", "ek.1")]
 r <- mapply(function(specimen_id, run, lanai_side) {
-  return(supersat9[supersat9$Specimen.ID == specimen_id 
+  d9 <- supersat9[supersat9$Specimen.ID == specimen_id 
                    & supersat9$Run == run 
-                   & supersat9$Lanai.Side == lanai_side, "rlc_end_time"])
+                   & supersat9$Lanai.Side == lanai_side, ]
+  return(c(d9$rlc_end_time, d9$ek.1))
 }, supersat$Specimen.ID, supersat$Run, supersat$Lanai.Side)
-supersat$day9_rlc_time <- unlist(r)
+supersat$day9_rlc_time <- unlist(r[1, ])
+supersat$day9_ek <- as.numeric(unlist(r[2, ]))
 
+# Add new column for Ek on day 5
+supersat$day5_ek <- NA
+supersat5 <- ek[ek$RLC.Day == 5, c("Specimen.ID", "Run", "Lanai.Side", "ek.1")]
+for (i in 1:nrow(supersat5)) {
+  supersat[supersat$Specimen.ID == supersat5[i, "Specimen.ID"]
+           & supersat$Run == supersat5[i, "Run"]
+           & supersat$Lanai.Side == supersat5[i, "Lanai.Side"], ]$day5_ek <- supersat5[i, "ek.1"]
+}
 
-calc_supersat_by_day <- function(day1_date, days_to_consider, day1_rlc_time, day9_rlc_time, Ek, lanai_side) {
+calc_supersat_by_day <- function(run_irradiance, day1_date, days_to_consider, Ek, lanai_side) {
   supersat_by_day <- rep(NA, length(days_to_consider))
   n = 0
   for (day in days_to_consider) {
-    start_time <- if(day == 0) day1_rlc_time else "00:00:01"
-    start <- as.POSIXct(paste(day1_date + 86400 * day, start_time, sep = " "))
-    end_time <- if(day == 8) day9_rlc_time else "23:59:59"
-    end <- as.POSIXct(paste(day1_date + 86400 * day, end_time, sep = " "))
+    start <- as.POSIXct(paste(day1_date + 86400 * day, "00:00:01", sep = " "))
+    end <- as.POSIXct(paste(day1_date + 86400 * day, "23:59:59", sep = " "))
     n = n + 1
-    supersat_by_day[n] = nrow(irradiance[irradiance$date_time > start 
-                                        & irradiance$date_time < end 
-                                        & irradiance$Lanai.Side == lanai_side
-                                        & irradiance$Epar > Ek, ])
+    supersat_by_day[n] = nrow(run_irradiance[run_irradiance$date_time > start 
+                                        & run_irradiance$date_time < end 
+                                        & run_irradiance$Lanai.Side == lanai_side
+                                        & run_irradiance$Epar > Ek, ])
     
   }
   return(supersat_by_day)
@@ -55,26 +62,34 @@ calc_supersat_by_day <- function(day1_date, days_to_consider, day1_rlc_time, day
 # Test the function above
 #calc_supersat_by_day(supersat[1, "posix_date"], 0:2, supersat[1, "day1_rlc_time"], supersat[1, "day9_rlc_time"], supersat[1, "ek.1"], "ewa")
 
-
-calculate_supersat <- function(posix_date, day1_rlc_time, day9_rlc_time, Ek, run, lanai_side) {
+calculate_supersat <- function(day1_date, day1_rlc_time, day9_rlc_time, day1_ek, day5_ek, day9_ek, run, lanai_side) {
+  run_start <- as.POSIXct(paste(day1_date, day1_rlc_time, sep = " "))
+  run_end <- as.POSIXct(paste(day1_date + 86400 * 8, day9_rlc_time, sep = " "))
+  run_irradiance <- irradiance[irradiance$date_time > run_start & irradiance$date_time < run_end, ]
   if (run == 8 | run == 9) {
-    supersat_p1 = mean(calc_supersat_by_day(posix_date, 0:3, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
-    supersat_p2 = mean(calc_supersat_by_day(posix_date, 4:7, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
-    supersat_p3 = NA
-    supersat_total = mean(calc_supersat_by_day(posix_date, 0:7, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
+    supersat_p1 = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
+    supersat_p2 = calc_supersat_by_day(run_irradiance, day1_date, 3:4, mean(day1_ek, day9_ek), lanai_side)
+    supersat_p3 = calc_supersat_by_day(run_irradiance, day1_date, 5:7, day9_ek, lanai_side)
   } else {
-    supersat_p1 = mean(calc_supersat_by_day(posix_date, 0:2, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
-    supersat_p2 = mean(calc_supersat_by_day(posix_date, 3:4, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
-    supersat_p3 = mean(calc_supersat_by_day(posix_date, 5:7, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
-    supersat_total = mean(calc_supersat_by_day(posix_date, 0:7, day1_rlc_time, day9_rlc_time, Ek, lanai_side))
+    supersat_p1 = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
+    supersat_p2 = calc_supersat_by_day(run_irradiance, day1_date, 3:4, day5_ek, lanai_side)
+    supersat_p3 = calc_supersat_by_day(run_irradiance, day1_date, 5:7, day9_ek, lanai_side)
   }
-  return(list(supersat_p1, supersat_p2, supersat_p3, supersat_total))
+  return(list(mean(supersat_p1), mean(supersat_p2), mean(supersat_p3), mean(c(supersat_p1, supersat_p2, supersat_p3))))
 }
 
-r <- mapply(calculate_supersat, supersat$posix_date, supersat$day1_rlc_time, supersat$day9_rlc_time, supersat$ek.1, supersat$Run, supersat$Lanai.Side)
+r <- mapply(calculate_supersat, 
+            supersat$posix_date, 
+            supersat$day1_rlc_time, 
+            supersat$day9_rlc_time, 
+            supersat$ek.1, 
+            supersat$day5_ek,
+            supersat$day9_ek,
+            supersat$Run, 
+            supersat$Lanai.Side)
 supersat$supersat_p1 <- unlist(r[1,])
 supersat$supersat_p2 <- unlist(r[2,])
 supersat$supersat_p3 <- unlist(r[3,])
 supersat$supersat_total <- unlist(r[4,])
 
-
+write.csv(supersat, "./output/mean_supersaturation_by_period.csv")
