@@ -51,6 +51,7 @@ for (i in 1:nrow(supersat5)) {
 
 calc_supersat_by_day <- function(run_irradiance, day1_date, days_to_consider, threshold, lanai_side) {
   supersat_by_day <- rep(NA, length(days_to_consider))
+  daylight_minutes <- rep(NA, length(days_to_consider))
   n = 0
   for (day in days_to_consider) {
     start <- as.POSIXct(paste(day1_date + 86400 * day, "00:00:01", sep = " "))
@@ -60,27 +61,43 @@ calc_supersat_by_day <- function(run_irradiance, day1_date, days_to_consider, th
                                         & run_irradiance$date_time < end 
                                         & run_irradiance$Lanai.Side == lanai_side
                                         & run_irradiance$Epar > threshold, ])
-    
+    daylight_minutes[n] = nrow(run_irradiance[run_irradiance$date_time > start 
+                                           & run_irradiance$date_time < end 
+                                           & run_irradiance$Lanai.Side == lanai_side
+                                           & run_irradiance$Epar > 1, ])
   }
-  return(supersat_by_day)
+  return(list(supersat_by_day=supersat_by_day, daylight_minutes=daylight_minutes))
 }
+
 # Test the function above
-#calc_supersat_by_day(supersat[1, "posix_date"], 0:2, supersat[1, "day1_rlc_time"], supersat[1, "day9_rlc_time"], supersat[1, "ek.1"], "ewa")
+#r = calc_supersat_by_day(irradiance, supersat[1, "posix_date"], 0:2, supersat[1, "ek.1"], "ewa")
 
 calculate_supersat <- function(day1_date, day1_rlc_time, day9_rlc_time, day1_ek, day5_ek, day9_ek, run, lanai_side) {
   run_start <- as.POSIXct(paste(day1_date, day1_rlc_time, sep = " "))
   run_end <- as.POSIXct(paste(day1_date + 86400 * 8, day9_rlc_time, sep = " "))
   run_irradiance <- irradiance[irradiance$date_time > run_start & irradiance$date_time < run_end, ]
   if (run == 8 | run == 9) {
-    supersat_p1 = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
-    supersat_p2 = calc_supersat_by_day(run_irradiance, day1_date, 3:4, day1_ek, lanai_side)
-    supersat_p3 = calc_supersat_by_day(run_irradiance, day1_date, 5:8, day9_ek, lanai_side)
+    r = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
+    supersat_p1 <- r$supersat_by_day
+    day_length_p1 <- r$daylight_minutes
+    r = calc_supersat_by_day(run_irradiance, day1_date, 3:4, day1_ek, lanai_side)
+    supersat_p2 <- r$supersat_by_day
+    day_length_p2 <- r$daylight_minutes
+    r = calc_supersat_by_day(run_irradiance, day1_date, 5:8, day9_ek, lanai_side)
+    supersat_p3 <- r$supersat_by_day
+    day_length_p3 <- r$daylight_minutes
   } else {
-    supersat_p1 = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
-    supersat_p2 = calc_supersat_by_day(run_irradiance, day1_date, 3:4, day5_ek, lanai_side)
-    supersat_p3 = calc_supersat_by_day(run_irradiance, day1_date, 5:8, day9_ek, lanai_side)
+    r = calc_supersat_by_day(run_irradiance, day1_date, 0:2, day1_ek, lanai_side)
+    supersat_p1 <- r$supersat_by_day
+    day_length_p1 <- r$daylight_minutes
+    r = calc_supersat_by_day(run_irradiance, day1_date, 3:4, day5_ek, lanai_side)
+    supersat_p2 <- r$supersat_by_day
+    day_length_p2 <- r$daylight_minutes
+    r = calc_supersat_by_day(run_irradiance, day1_date, 5:8, day9_ek, lanai_side)
+    supersat_p3 <- r$supersat_by_day
+    day_length_p3 <- r$daylight_minutes
   }
-  return(list(mean(supersat_p1), mean(supersat_p2), mean(supersat_p3), mean(c(supersat_p1, supersat_p2, supersat_p3))))
+  return(list(mean(supersat_p1), mean(supersat_p2), mean(supersat_p3), mean(c(supersat_p1, supersat_p2, supersat_p3)), mean(c(day_length_p1, day_length_p2, day_length_p3))))
 }
 
 r <- mapply(calculate_supersat, 
@@ -96,10 +113,13 @@ supersat$supersat_p1 <- unlist(r[1,])
 supersat$supersat_p2 <- unlist(r[2,])
 supersat$supersat_p3 <- unlist(r[3,])
 supersat$supersat_total <- unlist(r[4,])
+supersat$day_length_avg <- unlist(r[5,])
 
 supersat$carbon1 <- supersat$supersat_p1 * supersat$rETRmax
 supersat$carbon5 <- supersat$supersat_p2 * supersat$day5_rETRmax
 supersat$carbon9 <- supersat$supersat_p3 * supersat$day9_rETRmax
+supersat$carbon_total <- supersat$carbon1 + supersat$carbon5 + supersat$carbon9
+supersat$supersat_rel <- supersat$supersat_total / supersat$day_length_avg
 
 write.csv(supersat, "./output/mean_supersaturation_by_period.csv")
 write.csv(supersat, "../ek_irrad_model/input_data/mean_supersaturation_by_period.csv")
