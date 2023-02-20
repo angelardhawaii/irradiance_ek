@@ -8,4 +8,6 @@ ek$RLC.Day <- as.factor(ek$RLC.Day)
 ek$Treatment <- as.character(ek$Treatment)
 ek$Plant.ID <- as.factor(ek$Plant.ID)
 ek$Run <- as.character(ek$Run)
-ek$rETRmax <- as.numeric(ek$rETRmax)
+ek$rETRmaxYpoint1_min <- as.numeric(ek$rETRmaxYpoint1 * 60)
+ek$rETRmaxYpoint1 <- as.numeric(ek$rETRmaxYpoint1)
+ek$pmax_min <- ek$pmax * 60
